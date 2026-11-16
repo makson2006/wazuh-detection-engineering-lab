@@ -2,7 +2,7 @@
 
 ## 🎯 Project Overview
 This hands-on lab demonstrates core **Detection Engineering** and **Security Operations Center (SOC)** capabilities. The objective was to deploy a centralized Wazuh SIEM manager, configure Microsoft Sysmon on a Windows endpoint for deep endpoint telemetry, write custom correlation rules mapped to the **MITRE ATT&CK®** framework, simulate post-exploitation activities, and perform a structured Tier 1/Tier 2 Incident Triage.
-
+All the steps and documentation you can find on my Medium profile: [Endpoint Detection Engineering & Incident Triage with Wazuh SIEM](https://medium.com/@salyhamaks/endpoint-detection-engineering-incident-triage-with-wazuh-siem-d9af7291a061?postPublishedType=initial)
 ---
 
 ## 🏗️ Lab Architecture & Environment
