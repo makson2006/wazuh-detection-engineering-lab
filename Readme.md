@@ -1,51 +1,70 @@
-# Wazuh SIEM & Sysmon: Custom Detection Engineering Lab
+# Wazuh SIEM & Sysmon: Custom Detection Engineering & Incident Triage Lab
 
 ## 🎯 Project Overview
-This hands-on lab demonstrates **Detection Engineering** and **Security Operations Center (SOC)** core capabilities. The objective was to deploy a centralized Wazuh SIEM manager, configure Sysmon on a Windows endpoint for deep endpoint telemetry, write custom correlation rules for advanced adversary behaviors, and map every detection to the **MITRE ATT&CK®** framework.
+This hands-on lab demonstrates core **Detection Engineering** and **Security Operations Center (SOC)** capabilities. The objective was to deploy a centralized Wazuh SIEM manager, configure Microsoft Sysmon on a Windows endpoint for deep endpoint telemetry, write custom correlation rules mapped to the **MITRE ATT&CK®** framework, simulate post-exploitation activities, and perform a structured Tier 1/Tier 2 Incident Triage.
 
 ---
 
 ## 🏗️ Lab Architecture & Environment
-* **SIEM Manager:** Wazuh v4.12.0 deployed on Ubuntu Linux.
-* **Endpoint Monitored:** Windows 11 (`DESKTOP-KPS6G6S`) running **Sysmon** (System Monitor) for advanced process, registry, and service telemetry.
-* **Log Ingestion Pipeline:** Sysmon Event IDs $\rightarrow$ Wazuh Agent $\rightarrow$ Wazuh Manager Decoders & Rules $\rightarrow$ OpenSearch Dashboard.
+
+| Component | Hostname / IP | OS / Version | Role |
+| :--- | :--- | :--- | :--- |
+| **SIEM Manager** | `maks-VMware-Virtual-Platform`<br>`(192.168.0.140)` | Ubuntu 26.04.1 LTS /<br>Wazuh v4.12.0 (AIO) | Log ingestion, rule correlation, alerting, and dashboarding |
+| **Monitored Endpoint** | `DESKTOP-KPS6G6S`<br>`(Agent 001, 192.168.0.49)` | Windows 10 /<br>Wazuh Agent v4.12.0 | Target workstation for telemetry collection and attack simulation |
+
+---
+
+## 🚀 Execution Roadmap
+
+1. **Phase 1 — Endpoint Setup:** Installed Microsoft Sysmon using the SwiftOnSecurity baseline configuration, configured Wazuh agent to ingest the operational event channel, and verified real-time TCP connectivity.
+2. **Phase 2 — Detection Engineering:** Authored custom XML rules in Wazuh (`local_rules.xml`) to elevate low-noise administrative commands and stealthy persistence mechanisms to high-severity alerts.
+3. **Phase 3 — Incident Triage:** Performed full-cycle alert analysis, raw log verification, timeline reconstruction, and false-positive evaluation for a reconnaissance detection.
 
 ---
 
 ## 🛠️ Custom Detection Rules Implemented
-All custom correlation rules were integrated into `/var/ossec/etc/rules/local_rules.xml` to elevate low-noise administrative commands and malicious persistence mechanisms to high-severity alerts (Level 10–12) for immediate SOC triage.
+
+All custom rules were integrated into `/var/ossec/etc/rules/local_rules.xml` to catch common adversary tactics:
 
 ### 1. Command-Line Reconnaissance (`100101`)
-* **Sysmon Event ID:** `1 */` (Process Creation)
+* **Sysmon Event ID:** `1` (Process Creation)
+* **Severity Level:** `12` (High)
 * **MITRE ATT&CK:** [T1033](https://attack.mitre.org/techniques/T1033/) (System Owner/User Discovery) & [T1087](https://attack.mitre.org/techniques/T1087/) (Account Discovery)
-* **Description:** Detects enumeration utilities (`whoami`, `net localgroup`, `systeminfo`) executed immediately post-initial access.
+* **Description:** Detects post-exploitation enumeration utilities (`whoami`, `net localgroup`, `systeminfo`) run immediately after initial access.
 
-### 2. Registry Persistence Mechanism (`100102`)
-* **Sysmon Event ID:** `13` (Registry Event - Value Set)
-* **MITRE ATT&CK:** [T1547.001](https://attack.mitre.org/techniques/T1547/001/) (Registry Run Keys / Startup Folder)
-* **Description:** Flags unauthorized modifications to Windows startup Run keys (`CurrentVersion\Run`).
+### 2. Scheduled Task Persistence (`100110`)
+* **Sysmon Event ID:** `1` (Process Creation)
+* **Severity Level:** `10` (High)
+* **MITRE ATT&CK:** [T1053.005](https://attack.mitre.org/techniques/T1053/005/) (Scheduled Task/Job: Scheduled Task)
+* **Description:** Monitors abuse of the built-in Windows task scheduler (`schtasks.exe /create`) to ensure malicious payloads automatically re-execute.
 
-### 3. Scheduled Task Persistence (`100110`)
-* **Sysmon Event ID:** `1 */` (Process Creation)
-* **MITRE ATT&CK:** [T1053.005](https://attack.mitre.org/techniques/T1053/005/) (Scheduled Task)
-* **Description:** Detects persistence established via the task scheduler utility (`schtasks.exe /create`).
-
-### 4. Windows Service Creation (`100111`)
-* **Sysmon Event ID:** `1 */` (Process Creation)
+### 3. Windows Service Creation (`100111`)
+* **Sysmon Event ID:** `1` (Process Creation)
+* **Severity Level:** `10` (High)
 * **MITRE ATT&CK:** [T1543.003](https://attack.mitre.org/techniques/T1543/003/) (Create or Modify System Process: Windows Service)
-* **Description:** Monitors abuse of the service control manager (`sc.exe create`) to register malicious payloads as system services.
+* **Description:** Targets service control manager invocations (`sc.exe create`) used by malware to register payloads running under `SYSTEM` privileges.
 
 ---
 
-## 📊 Attack Simulation & Validation (Screenshots)
+## 🔍 Phase 3 — Incident Triage Summary (Wazuh Alert `100101`)
 
-### Detection of Scheduled Tasks and Windows Services (`100110` / `100111`)
-![Wazuh Dashboard Hits](screenshots/wazuh-dashboard.png)
+* **Event Timestamp:** 2026-11-15 18:30:47 UTC
+* **Endpoint:** `DESKTOP-KPS6G6S` (User: `DESKTOP-KPS6G6S\salyc`)
+* **Triggered Command:** `C:\Windows\System32\whoami.exe /all` spawned from an interactive PowerShell session (`PID 3140` $\rightarrow$ `PID 20656`).
+* **Verdict:** **Benign True Positive** (authorized lab simulation).
+* **Key Findings:** Binary verified as legitimate Microsoft executable (`whoami.exe`) with matching metadata and no signs of masquerading. Parent PowerShell process was clean and un-obfuscated.
+* **Analyst Recommendations (Remediation & Improvements):**
+  1. Split broad reconnaissance rules into per-command branches with granular MITRE mappings (e.g., separating user discovery from group discovery).
+  2. Reserve highest severity levels (Level 12) for correlation triggers (multiple distinct recon commands within a tight time window) rather than single command executions.
+  3. Integrate environmental exclusions for known administrative scripts to reduce alert fatigue.
 
 ---
 
-## 🚀 Key Takeaways & Skills Demonstrated
-* **Telemetry Collection:** Configuring Sysmon config XML to capture high-fidelity process and registry events.
-* **Detection Engineering:** Writing robust XML rules for Wazuh using regex (`pcre2`) and specific field filtering.
-* **Threat Hunting & Incident Response:** Validating alerts through active attack simulation and inspecting Wazuh Discover dashboards.
+## 📈 Key Takeaways & Skills Demonstrated
+* **Endpoint Telemetry Hardening:** Configuring advanced Sysmon rulesets to capture full command-line arguments and process trees.
+* **SIEM Rule Authoring:** Writing robust XML detection logic for Wazuh using regex (`pcre2`) and field filtering.
+* **Threat Detection & Triage:** Validating security controls through controlled purple-team simulations and conducting thorough log analysis.
 
+---
+*Author: Maksym Salyha*  
+[LinkedIn](https://www.linkedin.com/in/maksym-salyha-4957892b7/) | [GitHub](https://github.com/makson2006)
